@@ -45,20 +45,27 @@ function RegisterForm() {
     if (error || !data.user) {
       setErro(error?.message === "User already registered"
         ? "E-mail já cadastrado. Faça login."
-        : "Erro ao criar conta. Tente novamente.");
+        : (error?.message ?? "Erro ao criar conta. Tente novamente."));
       setLoading(false);
       return;
     }
 
-    // Inserir profile
-    await supabase.from("profiles").insert({
-      id: data.user.id,
-      email,
-      nome,
-      telefone: telefone || null,
-      tipo,
-      avatar_url: null,
-    });
+    // Inserir profile via API route (evita problemas de RLS no browser)
+    try {
+      await fetch("/api/auth/create-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: data.user.id,
+          email,
+          nome,
+          telefone: telefone || null,
+          tipo,
+        }),
+      });
+    } catch {
+      // não bloquear o fluxo se o insert falhar
+    }
 
     router.push(tipo === "professor" ? "/professor" : "/aluno");
   }
