@@ -50,22 +50,18 @@ function RegisterForm() {
       return;
     }
 
-    // Inserir profile via API route (evita problemas de RLS no browser)
-    try {
-      await fetch("/api/auth/create-profile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: data.user.id,
-          email,
-          nome,
-          telefone: telefone || null,
-          tipo,
-        }),
-      });
-    } catch {
-      // não bloquear o fluxo se o insert falhar
-    }
+    // Inserir profile em background — não bloqueia o redirect
+    fetch("/api/auth/create-profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: data.user.id,
+        email,
+        nome,
+        telefone: telefone || null,
+        tipo,
+      }),
+    }).catch(() => {});
 
     router.push(tipo === "professor" ? "/professor" : "/aluno");
   }

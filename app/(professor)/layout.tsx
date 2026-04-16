@@ -14,11 +14,15 @@ export default async function ProfessorLayout({ children }: { children: React.Re
     .eq("id", user.id)
     .single();
 
-  if (profile?.tipo !== "professor") redirect("/aluno");
+  // Fallback: usa user_metadata se profile ainda não foi criado
+  const tipo = profile?.tipo ?? (user.user_metadata?.tipo as string | undefined);
+  const nome = profile?.nome ?? (user.user_metadata?.nome as string | undefined);
+
+  if (tipo !== "professor") redirect("/aluno");
 
   return (
     <div className="min-h-screen flex flex-col bg-jurua-cream">
-      <Navbar userRole="professor" userName={profile?.nome} />
+      <Navbar userRole="professor" userName={nome} />
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
         {children}
       </main>
