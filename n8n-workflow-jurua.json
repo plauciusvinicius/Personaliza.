@@ -1,0 +1,408 @@
+{
+  "name": "Juruá — PDF to Audiobook + Video + Slides + Quiz",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# Portal Juruá — Processamento Completo\n\n**Fluxo:**\n1. Recebe PDF do portal (webhook)\n2. Salva no Google Drive\n3. Extrai texto (OCR.space)\n4. Divide em episódios (5.000 chars)\n5. Para cada episódio:\n   - Gera áudio (OpenAI TTS)\n   - Gera imagens (OpenRouter DALL-E)\n   - Compõe vídeo (FFmpeg VPS)\n   - Gera slides (OpenRouter GPT)\n   - Gera quiz (OpenRouter GPT)\n6. Faz callback ao portal Juruá\n7. Registra no Google Sheets",
+        "height": 400,
+        "width": 700,
+        "color": 3
+      },
+      "id": "sticky-main",
+      "name": "Sticky Main",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "jurua-pdf-upload",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-portal",
+      "name": "Webhook Portal Juruá",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 500],
+      "webhookId": "jurua-pdf-upload-v1"
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            { "name": "sourceFolderId", "value": "1RYU3N4wc_by3V8Lsw-P_ax8hd9Lp4L8a" },
+            { "name": "audiobooksFolderId", "value": "11EY2wZDKJpNFXcvIDoz1UI5iZ6mGRo2Q" },
+            { "name": "videosFolderId", "value": "17b6hOreKX81SfrmXMI-E-6O5s91vJvwJ" },
+            { "name": "slidesFolderId", "value": "1DI-e4ik9VG_t2POrMhll6MJ01sL3gKDT" },
+            { "name": "thumbsFolderId", "value": "1u1StuLso3CYVj7HXib7RNeaEkmxR_ySh" },
+            { "name": "voiceOpenAI", "value": "onyx" },
+            { "name": "ttsModel", "value": "gpt-4o-mini-tts" },
+            { "name": "ocrSpaceEndpoint", "value": "https://api.ocr.space/parse/image" },
+            { "name": "ocrSpaceApiKey", "value": "K85128356988957" },
+            { "name": "openRouterModel", "value": "openai/gpt-4o-mini" },
+            { "name": "imageModel", "value": "openai/dall-e-3" },
+            { "name": "ffmpegVpsHost", "value": "https://srv1323363.hstgr.cloud" },
+            { "name": "googleSheetId", "value": "13YsCWa488qKCnl8mJYVSmTLQ0KTVTW_oKsJ62Tc4VAg" },
+            { "name": "googleSheetTab", "value": "Processamentos" },
+            { "name": "notificationEmail", "value": "pv9081@gmail.com" },
+            { "name": "portalSecret", "value": "jurua_portal_secret_2024" }
+          ],
+          "number": [
+            { "name": "maxCharsPerEpisode", "value": 5000 },
+            { "name": "minCharsPerEpisode", "value": 1200 },
+            { "name": "secondsPerImage", "value": 45 },
+            { "name": "minExtractedCharsThreshold", "value": 300 },
+            { "name": "quizQuestionsPerEpisode", "value": 7 }
+          ]
+        },
+        "options": {}
+      },
+      "id": "config",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [420, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('Config').first().json;\nconst webhookItem = $('Webhook Portal Juruá').first();\nconst body = webhookItem.json?.body ?? webhookItem.json ?? {};\nconst headers = webhookItem.json?.headers ?? {};\n\n// Validar segredo\nconst reqSecret = body.secret || headers['x-n8n-secret'] || headers['x-portal-secret'] || '';\nif (cfg.portalSecret && reqSecret && reqSecret !== cfg.portalSecret) {\n  throw new Error('Segredo inválido no upload.');\n}\n\nconst livroId = String(body.itemId || body.livroId || body.id || '');\nif (!livroId) throw new Error('livroId obrigatório.');\n\nconst portalCallbackUrl = body.portalCallbackUrl || '';\n\nlet fileBin = null;\nconst binaries = webhookItem.binary || {};\nconst firstBinaryKey = Object.keys(binaries)[0];\nif (firstBinaryKey) {\n  fileBin = binaries[firstBinaryKey];\n}\n\nif (!fileBin) {\n  const b64raw = body.fileBase64 || body.file_base64 || body.data || '';\n  if (b64raw) {\n    const b64clean = b64raw.replace(/^data:[^;]+;base64,/, '');\n    const fileName = body.fileName || body.file_name || `jurua-${livroId}.pdf`;\n    fileBin = { data: b64clean, mimeType: 'application/pdf', fileName, fileExtension: 'pdf' };\n  }\n}\n\nif (!fileBin) throw new Error('Nenhum PDF recebido.');\n\nconst title = String(body.title || body.titulo || fileBin.fileName || 'livro')\n  .replace(/\\.pdf$/i, '').trim();\n\nconst safeSlug = title.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')\n  .replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-')\n  .replace(/^-|-$/g, '').toLowerCase() || 'livro';\n\nreturn [{\n  json: { ...cfg, livroId, portalCallbackUrl, wpTitle: title, safeSlug,\n    sourcePdfFileName: `jurua-${livroId}-${safeSlug}.pdf`,\n    uploadStartedAt: new Date().toISOString() },\n  binary: { pdf: fileBin }\n}];"
+      },
+      "id": "normalizar-upload",
+      "name": "Normalizar Upload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, livroId: $json.livroId, status: 'processing', message: 'Processamento iniciado' } }}",
+        "options": {}
+      },
+      "id": "responder-portal",
+      "name": "Responder Portal",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [860, 400]
+    },
+    {
+      "parameters": {
+        "inputDataFieldName": "pdf",
+        "name": "={{ $json.sourcePdfFileName }}",
+        "driveId": { "__rl": true, "mode": "list", "value": "My Drive" },
+        "folderId": { "__rl": true, "mode": "id", "value": "={{ $json.sourceFolderId }}" },
+        "options": {}
+      },
+      "id": "drive-upload-pdf",
+      "name": "Drive Upload PDF",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [860, 600],
+      "credentials": {
+        "googleDriveOAuth2Api": { "id": "UTfcsuSndFljkn8K", "name": "Google Drive - pv9081@" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": { "__rl": true, "mode": "id", "value": "={{ $json.id }}" },
+        "options": {}
+      },
+      "id": "drive-baixar-pdf",
+      "name": "Drive Baixar PDF",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [1080, 600],
+      "credentials": {
+        "googleDriveOAuth2Api": { "id": "UTfcsuSndFljkn8K", "name": "Google Drive - pv9081@" }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.ocrSpaceEndpoint }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "apikey", "value": "={{ $('Config').first().json.ocrSpaceApiKey }}" }]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            { "parameterType": "formBinaryData", "name": "file", "inputDataFieldName": "data" },
+            { "name": "language", "value": "por" },
+            { "name": "isOverlayRequired", "value": "false" },
+            { "name": "OCREngine", "value": "2" },
+            { "name": "isCreateSearchablePdf", "value": "false" }
+          ]
+        },
+        "options": { "timeout": 180000 }
+      },
+      "id": "ocr-space",
+      "name": "OCR.space Extração",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1300, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $input.first(); const cfg = $('Config').first().json;\nconst base = $('Normalizar Upload').first().json;\nconst body = src.json || {};\nconst parsed = Array.isArray(body.ParsedResults) ? body.ParsedResults : [];\nconst rawText = parsed.map(p => p.ParsedText || '').join('\\n\\n');\nconst cleanText = String(rawText || '').replace(/\\r/g, '\\n').replace(/[ \\t]+/g, ' ')\n  .replace(/\\n{3,}/g, '\\n\\n').replace(/Página \\d+/gi, '').replace(/\\u0000/g, '').trim();\nconst charCount = cleanText.length;\nif (charCount < cfg.minExtractedCharsThreshold) {\n  throw new Error(`Texto insuficiente: ${charCount} chars. Verifique o PDF.`);\n}\nreturn [{ json: { ...cfg, ...base, narrationText: cleanText, charCount,\n  wordCount: cleanText.split(/\\s+/).length, driveFileId: $('Drive Upload PDF').first().json.id } }];"
+      },
+      "id": "interpretar-ocr",
+      "name": "Interpretar OCR",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1520, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst text = String(item.narrationText || '').trim();\nconst maxChars = Number(item.maxCharsPerEpisode || 5000);\nconst minChars = Number(item.minCharsPerEpisode || 1200);\nconst sentenceRegex = /[^.!?\\n]+[.!?\\n]*/g;\nconst sentences = text.match(sentenceRegex) || [text];\nconst episodes = [];\nlet current = '';\nfor (const sentence of sentences) {\n  if ((current + sentence).length > maxChars && current.length >= minChars) {\n    episodes.push(current.trim());\n    current = sentence;\n  } else { current += sentence; }\n}\nif (current.trim()) {\n  if (episodes.length > 0 && current.length < minChars) episodes[episodes.length - 1] += ' ' + current.trim();\n  else episodes.push(current.trim());\n}\nconst total = episodes.length;\nreturn episodes.map((epText, idx) => {\n  const ep = String(idx + 1).padStart(2, '0');\n  const slug = item.safeSlug || 'livro';\n  const imageCount = Math.max(1, Math.ceil((epText.length / 1000) * 60 / Number(item.secondsPerImage || 45)));\n  const epTitulo = `${item.wpTitle} — Episódio ${idx + 1}`;\n  return { json: { ...item, episodeNumber: idx + 1, episodeFormatted: ep, totalEpisodes: total,\n    episodeText: epText, episodeChars: epText.length, episodeTitulo: epTitulo, imageCount,\n    audiobookFileName: `${slug}_ep-${ep}_audiobook.mp3`,\n    videoFileName: `${slug}_ep-${ep}_video.mp4`,\n    slidesFileName: `${slug}_ep-${ep}_slides.md`,\n    thumbFileName: `${slug}_ep-${ep}_thumb.png` } };\n});"
+      },
+      "id": "dividir-episodios",
+      "name": "Dividir em Episódios",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1740, 600]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/speech",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ model: $json.ttsModel || 'gpt-4o-mini-tts', voice: $json.voiceOpenAI || 'onyx', input: $json.episodeText, response_format: 'mp3' }) }}",
+        "options": { "response": { "response": { "responseFormat": "file" } }, "timeout": 300000 }
+      },
+      "id": "openai-tts",
+      "name": "OpenAI TTS Audiobook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1960, 480],
+      "credentials": { "openAiApi": { "id": "COLE_CREDENTIAL_OPENAI", "name": "OpenAI" } }
+    },
+    {
+      "parameters": {
+        "inputDataFieldName": "data",
+        "name": "={{ $json.audiobookFileName }}",
+        "driveId": { "__rl": true, "mode": "list", "value": "My Drive" },
+        "folderId": { "__rl": true, "mode": "id", "value": "={{ $json.audiobooksFolderId }}" },
+        "options": {}
+      },
+      "id": "drive-upload-audiobook",
+      "name": "Drive Upload Audiobook",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [2180, 480],
+      "credentials": {
+        "googleDriveOAuth2Api": { "id": "UTfcsuSndFljkn8K", "name": "Google Drive - pv9081@" }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer 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" },
+            { "name": "HTTP-Referer", "value": "https://jurua-portal.vercel.app" },
+            { "name": "X-Title", "value": "Juruá Portal" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ model: 'openai/gpt-4o-mini', messages: [{ role: 'system', content: 'Você é um especialista em criar materiais educacionais em português brasileiro.' }, { role: 'user', content: `Crie exatamente ${$json.quizQuestionsPerEpisode || 7} questões de múltipla escolha sobre o texto abaixo.\\n\\nRetorne APENAS um JSON válido no formato:\\n{\"perguntas\": [{\"pergunta\": \"...\", \"opcao_a\": \"...\", \"opcao_b\": \"...\", \"opcao_c\": \"...\", \"opcao_d\": \"...\", \"resposta_correta\": \"a|b|c|d\"}]}\\n\\nTexto:\\n${$json.episodeText.substring(0, 4000)}` }], temperature: 0.7, max_tokens: 2000 }) }}",
+        "options": { "timeout": 120000 }
+      },
+      "id": "openrouter-quiz",
+      "name": "OpenRouter Gerar Quiz",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1960, 640]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\ntry {\n  const content = item.choices?.[0]?.message?.content || '{\"perguntas\":[]}';\n  const parsed = JSON.parse(content);\n  const perguntas = parsed.perguntas || [];\n  return [{ json: { ...item, quizPerguntas: perguntas, quizOk: perguntas.length > 0 } }];\n} catch (e) {\n  return [{ json: { ...item, quizPerguntas: [], quizOk: false, quizError: e.message } }];\n}"
+      },
+      "id": "parsear-quiz",
+      "name": "Parsear Quiz",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2180, 640]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer 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" },
+            { "name": "HTTP-Referer", "value": "https://jurua-portal.vercel.app" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ model: 'openai/gpt-4o-mini', messages: [{ role: 'system', content: 'Você cria apresentações em português brasileiro.' }, { role: 'user', content: `Crie uma apresentação de slides sobre o texto abaixo.\\nFormato: retorne APENAS markdown com slides separados por '---'.\\nCada slide deve ter: título (# Título) e 3-5 bullet points.\\nMáximo 8 slides.\\n\\nTexto:\\n${$json.episodeText.substring(0, 4000)}` }], max_tokens: 1500 }) }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "openrouter-slides",
+      "name": "OpenRouter Gerar Slides",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1960, 800]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.portalCallbackUrl || $json.portalCallbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "x-portal-secret", "value": "={{ $('Config').first().json.portalSecret }}" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ livroId: $json.livroId, step: 'episodio', status: 'ok', mensagem: `Episódio ${$json.episodeNumber} processado`, episodioNumero: $json.episodeNumber, episodioTitulo: $json.episodeTitulo, episodioChars: $json.episodeChars, audiobookUrl: $json.audiobookDriveUrl || null, videoUrl: $json.videoDriveUrl || null, slidesUrl: $json.slidesDriveUrl || null }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "callback-episodio",
+      "name": "Callback Portal — Episódio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2400, 600]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Normalizar Upload').first().json.portalCallbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "x-portal-secret", "value": "={{ $('Config').first().json.portalSecret }}" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ livroId: $('Normalizar Upload').first().json.livroId, step: 'livro_completo', status: 'ok', mensagem: 'Todos os episódios processados', totalEpisodios: $('Dividir em Episódios').all().length }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "callback-livro-completo",
+      "name": "Callback Portal — Livro Completo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2620, 600]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').first().json.googleSheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $('Config').first().json.googleSheetTab }}"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {
+            "livroId": "={{ $('Normalizar Upload').first().json.livroId }}",
+            "titulo": "={{ $('Normalizar Upload').first().json.wpTitle }}",
+            "episodio": "={{ $json.episodeNumber }}",
+            "totalEpisodios": "={{ $json.totalEpisodes }}",
+            "chars": "={{ $json.episodeChars }}",
+            "status": "done",
+            "timestamp": "={{ new Date().toISOString() }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "google-sheets-log",
+      "name": "Google Sheets Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [2840, 600],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "COLE_CREDENTIAL_SHEETS", "name": "Google Sheets" }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Portal Juruá": {
+      "main": [[{ "node": "Config", "type": "main", "index": 0 }]]
+    },
+    "Config": {
+      "main": [[{ "node": "Normalizar Upload", "type": "main", "index": 0 }]]
+    },
+    "Normalizar Upload": {
+      "main": [
+        [{ "node": "Responder Portal", "type": "main", "index": 0 }],
+        [{ "node": "Drive Upload PDF", "type": "main", "index": 0 }]
+      ]
+    },
+    "Drive Upload PDF": {
+      "main": [[{ "node": "Drive Baixar PDF", "type": "main", "index": 0 }]]
+    },
+    "Drive Baixar PDF": {
+      "main": [[{ "node": "OCR.space Extração", "type": "main", "index": 0 }]]
+    },
+    "OCR.space Extração": {
+      "main": [[{ "node": "Interpretar OCR", "type": "main", "index": 0 }]]
+    },
+    "Interpretar OCR": {
+      "main": [[{ "node": "Dividir em Episódios", "type": "main", "index": 0 }]]
+    },
+    "Dividir em Episódios": {
+      "main": [
+        [{ "node": "OpenAI TTS Audiobook", "type": "main", "index": 0 }],
+        [{ "node": "OpenRouter Gerar Quiz", "type": "main", "index": 0 }],
+        [{ "node": "OpenRouter Gerar Slides", "type": "main", "index": 0 }]
+      ]
+    },
+    "OpenAI TTS Audiobook": {
+      "main": [[{ "node": "Drive Upload Audiobook", "type": "main", "index": 0 }]]
+    },
+    "Drive Upload Audiobook": {
+      "main": [[{ "node": "Callback Portal — Episódio", "type": "main", "index": 0 }]]
+    },
+    "OpenRouter Gerar Quiz": {
+      "main": [[{ "node": "Parsear Quiz", "type": "main", "index": 0 }]]
+    },
+    "Parsear Quiz": {
+      "main": [[{ "node": "Callback Portal — Episódio", "type": "main", "index": 0 }]]
+    },
+    "Callback Portal — Episódio": {
+      "main": [[{ "node": "Callback Portal — Livro Completo", "type": "main", "index": 0 }]]
+    },
+    "Callback Portal — Livro Completo": {
+      "main": [[{ "node": "Google Sheets Log", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [{ "name": "Juruá" }, { "name": "PDF" }, { "name": "Audiobook" }],
+  "triggerCount": 1,
+  "updatedAt": "2026-04-15T00:00:00.000Z",
+  "versionId": "v2-jurua-portal"
+}

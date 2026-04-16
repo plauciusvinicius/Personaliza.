@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #1A2610;
+
+  /* Juruá Brand Colors */
+  --jurua-dark:    #1E3610;
+  --jurua-primary: #2D4A1E;
+  --jurua-medium:  #3B5C24;
+  --jurua-accent:  #5A8A35;
+  --jurua-light:   #8AB85A;
+  --jurua-pale:    #EEF4E6;
+  --jurua-cream:   #F7FAF2;
+
+  /* UI */
+  --border:        #D8E8C8;
+  --muted:         #6B7C5A;
+  --success:       #22c55e;
+  --danger:        #ef4444;
+  --warning:       #f59e0b;
+}
+
+@theme inline {
+  --color-background:    var(--background);
+  --color-foreground:    var(--foreground);
+  --color-jurua-dark:    var(--jurua-dark);
+  --color-jurua-primary: var(--jurua-primary);
+  --color-jurua-medium:  var(--jurua-medium);
+  --color-jurua-accent:  var(--jurua-accent);
+  --color-jurua-light:   var(--jurua-light);
+  --color-jurua-pale:    var(--jurua-pale);
+  --color-jurua-cream:   var(--jurua-cream);
+  --color-border:        var(--border);
+  --color-muted:         var(--muted);
+  --color-success:       var(--success);
+  --color-danger:        var(--danger);
+  --color-warning:       var(--warning);
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--jurua-cream); }
+::-webkit-scrollbar-thumb { background: var(--jurua-accent); border-radius: 3px; }
+
+/* Animations */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.animate-fade-in { animation: fadeIn 0.3s ease-out; }
+.animate-spin { animation: spin 1s linear infinite; }
