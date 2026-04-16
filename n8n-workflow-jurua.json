@@ -163,7 +163,7 @@
       "typeVersion": 1.1,
       "position": [
         860,
-        400
+        500
       ]
     },
     {
@@ -187,8 +187,8 @@
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        860,
-        600
+        1080,
+        500
       ],
       "credentials": {
         "googleDriveOAuth2Api": {
@@ -212,8 +212,8 @@
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        1080,
-        600
+        1300,
+        500
       ],
       "credentials": {
         "googleDriveOAuth2Api": {
@@ -271,8 +271,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1300,
-        600
+        1520,
+        500
       ]
     },
     {
@@ -284,8 +284,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1520,
-        600
+        1740,
+        500
       ]
     },
     {
@@ -297,8 +297,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1740,
-        600
+        1960,
+        500
       ]
     },
     {
@@ -325,8 +325,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1960,
-        600
+        2180,
+        500
       ],
       "credentials": {
         "openAiApi": {
@@ -356,8 +356,8 @@
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        2180,
-        600
+        2400,
+        500
       ],
       "credentials": {
         "googleDriveOAuth2Api": {
@@ -400,8 +400,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2620,
-        600
+        2840,
+        500
       ]
     },
     {
@@ -413,8 +413,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2840,
-        600
+        3060,
+        500
       ]
     },
     {
@@ -447,8 +447,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3060,
-        600
+        3280,
+        500
       ]
     },
     {
@@ -481,8 +481,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3280,
-        600
+        3500,
+        500
       ]
     },
     {
@@ -515,8 +515,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3280,
-        800
+        3940,
+        500
       ]
     },
     {
@@ -551,8 +551,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
       "position": [
-        3500,
-        800
+        4160,
+        500
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -567,8 +567,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2400,
-        480
+        2620,
+        500
       ],
       "parameters": {
         "jsCode": "const episodeData = $('Dividir em Episódios').item.json;\nconst driveResult = $input.first().json;\n\n// webViewLink or webContentLink from Drive\nconst audiobookUrl = driveResult.webViewLink || driveResult.webContentLink || null;\nconst audiobookFileId = driveResult.id || null;\n\nreturn [{\n  json: {\n    ...episodeData,\n    audiobookDriveUrl: audiobookUrl,\n    audiobookFileId: audiobookFileId,\n  }\n}];"
@@ -580,8 +580,8 @@
       "type": "n8n-nodes-base.aggregate",
       "typeVersion": 1,
       "position": [
-        2840,
-        600
+        3720,
+        500
       ],
       "parameters": {
         "aggregate": "aggregateAllItemData",
@@ -628,13 +628,6 @@
         [
           {
             "node": "Responder Portal",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Drive Upload PDF",
             "type": "main",
             "index": 0
           }
@@ -789,6 +782,17 @@
         [
           {
             "node": "Google Sheets Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder Portal": {
+      "main": [
+        [
+          {
+            "node": "Drive Upload PDF",
             "type": "main",
             "index": 0
           }
